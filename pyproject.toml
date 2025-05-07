@@ -15,3 +15,4 @@ build-backend = "hatchling.build"
 
 [project.scripts]
 roo-conf = "roo_conf.deploy:deploy_prompts"
+publish = "uv publish -t $PYPI_API_TOKEN"
