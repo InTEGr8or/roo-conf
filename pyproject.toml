@@ -1,0 +1,17 @@
+[project]
+name = "roo-conf"
+version = "0.1.0"
+description = "A configuration and prompt updater for Roo Code"
+readme = "README.md"
+authors = [
+    { name = "Mark Stouffer", email = "1802850+InTEGr8or@users.noreply.github.com" }
+]
+requires-python = ">=3.12"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project.scripts]
+roo-conf = "roo_conf.deploy:deploy_prompts"
