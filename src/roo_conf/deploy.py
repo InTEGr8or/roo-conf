@@ -1,6 +1,27 @@
 import os
 import pathlib
 import importlib.resources
+import argparse
+
+def list_available_prompts():
+    """
+    Lists available markdown prompt files from the package.
+    """
+    package_prompts_dir = importlib.resources.files('roo_conf.prompts')
+    print("Available prompts:")
+    for item in package_prompts_dir.iterdir():
+        if item.is_file() and item.name.endswith('.md'):
+            print(f"- {item.name.replace('.md', '')}")
+
+def indicate_deployed_path(file_name):
+    """
+    Indicates the expected path of a deployed prompt file.
+    """
+    current_working_dir = pathlib.Path.cwd()
+    target_dir = current_working_dir / ".roo"
+    target_file_path = target_dir / file_name
+    print(f"Expected deployed path for '{file_name}': {target_file_path}")
+
 
 def deploy_prompts():
     """
@@ -43,4 +64,17 @@ def deploy_prompts():
 
 
 if __name__ == "__main__":
-    deploy_prompts()
+    parser = argparse.ArgumentParser(description="Deploy roo-conf prompts or list/locate them.")
+    parser.add_argument(
+        "-f", "--file",
+        help="Specify a prompt file name (without .md extension) to locate its deployed path."
+    )
+
+    args = parser.parse_args()
+
+    if args.file:
+        indicate_deployed_path(args.file)
+    elif len(sys.argv) == 1: # Check if no arguments were provided
+         deploy_prompts()
+    else: # If arguments other than --file were provided, list files
+        list_available_prompts()
