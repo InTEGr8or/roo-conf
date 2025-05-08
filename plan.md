@@ -1,10 +1,10 @@
 # Plan for Converting Bash Script to Python Package (roo-conf)
 
-This document outlines the steps to convert a bash script that deploys configuration files into a Python package executable via `uvx roo-conf`, including new requirements for version management and command-line interface enhancements.
+This document outlines the steps to convert a bash script that deploys configuration files into a Python package executable via `uvx roo-conf`, including new requirements for version management and command-line interface enhancements, and automated publishing via GitHub Actions.
 
 ## Objective
 
-Create a Python package `roo-conf` that can be installed and executed using `uvx`. The package will deploy markdown files stored within it to a `.roo` directory in the current working directory, removing the `.md` extension and replacing a `{{repo-full-path}}` placeholder with the current repository path. Additionally, the package will support automatic version incrementing upon publishing and provide a command-line interface for listing or indicating specific deployed files.
+Create a Python package `roo-conf` that can be installed and executed using `uvx`. The package will deploy markdown files stored within it to a `.roo` directory in the current working directory, removing the `.md` extension and replacing a `{{repo-full-path}}` placeholder with the current repository path. The package will provide a command-line interface for listing or indicating specific deployed files. Automated publishing to PyPI will be handled by a GitHub Actions workflow triggered by version changes.
 
 ## Current State
 
@@ -12,9 +12,10 @@ Create a Python package `roo-conf` that can be installed and executed using `uvx
 *   Existing files: `.gitignore`, `.python-version`, [`pyproject.toml`](pyproject.toml), [`README.md`](README.md), `src/`, [`src/roo_conf/__init__.py`](src/roo_conf/__init__.py), [`src/roo_conf/py.typed`](src/roo_conf/py.typed).
 *   Markdown files (`system-prompt-architect-gh.md`, `system-prompt-code-gh.md`) are located in `src/roo_conf/prompts/`.
 *   The original bash script (`transfer-to-repo.sh`) is located in `docs/source/roo/` for reference.
-*   Documentation files (`README.md`, `plan.md`, `task.md`) have been created/updated in the project root.
+*   Documentation files (`README.md`, `plan.md`, `task.md`) are in the project root.
 *   Initial Python deployment logic is in `src/roo_conf/deploy.py`.
 *   `pyproject.toml` has the `[project.scripts]` entry point for `roo-conf`.
+*   Automatic version incrementing script (`increment_version.py`) and a local publishing script (`publish.sh`) exist.
 
 ## Detailed Plan
 
@@ -22,40 +23,37 @@ Create a Python package `roo-conf` that can be installed and executed using `uvx
     *   The markdown files are located in `src/roo_conf/prompts/`.
     *   The bash script [`transfer-to-repo.sh`](docs/source/roo/transfer-to-repo.sh) is kept in `docs/source/roo/` for reference.
     *   Documentation files (`README.md`, `plan.md`, `task.md`) are in the project root.
+    *   Version management script (`increment_version.py`) and a local build script (`publish.sh`) are in the project root.
+    *   A GitHub Actions workflow file (`.github/workflows/workflow.yml`) will be created for automated publishing.
 
-2.  **Python Implementation (`src/roo_conf/deploy.py`):**
-    *   Refactor `src/roo_conf/deploy.py` to use a command-line argument parser (e.g., `argparse`).
-    *   Add an argument (e.g., `--file` or `-f`) to specify a deployed file name (without the `.md` extension).
-    *   If no file argument is provided, list the available deployed file names (derived from the files in `src/roo_conf/prompts/`, without the `.md` extension).
-    *   If a file argument is provided, indicate the path to the corresponding deployed file in the `.roo` directory. (Future enhancement could be to open the file for editing).
-    *   Keep the existing deployment logic as the default behavior when no specific file action is requested.
+2.  **Address uvx/Local Execution:**
+    *   Confirm that the `[project.scripts]` section in [`pyproject.toml`](pyproject.toml) only contains the entry point for `roo-conf` pointing to a Python function (`roo_conf.deploy:deploy_prompts`).
+    *   Understand that the persistent `uvx roo-conf` error is likely due to `uvx` caching a previously built and published wheel that contained an invalid console script entry.
+    *   Recommend using `uv run roo-conf` for local execution of the package's console script, as this reliably uses the local environment and avoids the `uvx` caching issue.
 
-3.  **`pyproject.toml` Update:**
-    *   Ensure the `[project.scripts]` section correctly points to the entry point in `src/roo_conf/deploy.py`.
+3.  **Automated Publishing with GitHub Actions:**
+    *   Modify the `publish.sh` script to remove the version incrementing step. It will now serve primarily as a local build script. (Completed)
+    *   Create a new file `.github/workflows/workflow.yml` with a GitHub Actions workflow. (Completed)
+    *   Configure the workflow to trigger on pushes to tags (e.g., `v*`).
+    *   Define steps in the workflow to:
+        *   Checkout the code.
+        *   Set up Python.
+        *   Install `uv`.
+        *   Build the source distribution and wheel using `uv build`.
+        *   Publish the built package to PyPI using `uv publish`, utilizing a secure method for authentication (e.g., PyPI trusted publisher or a PyPI API token stored as a GitHub Secret).
 
 4.  **Documentation Files:**
-    *   Update [`README.md`](README.md) to include instructions for the new command-line options (`--file` and listing files).
-    *   Update [`task.md`](task.md) to track the progress of implementing the CLI enhancements and version management.
-
-5.  **Version Management:**
-    *   Investigate using a tool or script to automatically increment the version in [`pyproject.toml`](pyproject.toml) before publishing. Hatchling might have built-in support or require a script.
-    *   Determine the best approach for version incrementing (e.g., patch, minor).
-    *   Integrate the version incrementing step into the publishing workflow.
-
-6.  **Subtask Creation:**
-    *   Spawn a new task in 'code' mode to:
-        *   Implement the command-line interface enhancements in `src/roo_conf/deploy.py`.
-        *   Implement or configure the automatic version incrementing process.
-        *   Update [`README.md`](README.md) with the new usage instructions.
-        *   Append progress, challenges, and learnings for these new features to [`task.md`](task.md).
-        *   Build and publish the package after implementing the features.
+    *   Update [`README.md`](README.md) to explain the recommended local execution method (`uv run`) and the automated publishing process via GitHub Actions. (Completed)
+    *   Update [`task.md`](task.md) to reflect the completed investigation steps and the implementation of the GitHub Actions workflow. (Completed)
+    *   [`plan.md`](plan.md) has been updated to reflect the new publishing strategy. (Completed)
 
 ## Workflow Diagram
 
 ```mermaid
 graph TD
-    A[Start Task] --> B{Review Existing Files & Feedback};
-    B --> C[Update Plan with New Requirements];
-    C --> D[Update Documentation Files];
-    D --> E[Spawn Code Subtask for Implementation & Publishing];
-    E --> F[End Task];
+    A[Start Task] --> B{Review Feedback & Error};
+    B --> C[Update Plan for CI/CD Publishing];
+    C --> D[Modify publish.sh];
+    D --> E[Create GitHub Workflow];
+    E --> F[Update Documentation];
+    F --> G[End Task];

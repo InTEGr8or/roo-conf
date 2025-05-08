@@ -3,9 +3,6 @@
 # Activate the virtual environment
 source .venv/bin/activate
 
-# Increment the patch version in pyproject.toml
-python increment_version.py
-
 # Clean previous builds and dist directory
 uv clean
 rm -rf dist/

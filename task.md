@@ -1,45 +1,33 @@
-# Implementation Task Progress for roo-conf
+# Implementation Task List for roo-conf (Code-GH Subtask)
 
-This file tracks the progress and learnings during the implementation of the roo-conf Python package.
+This file outlines the tasks completed in the Code-GH subtask.
 
 ## Tasks:
 
-- Implement the deployment logic in `src/roo_conf/deploy.py`.
-- Update `pyproject.toml` to add the `[project.scripts]` entry point.
-- Ensure files are correctly read from the package resources.
-- Ensure files are written to the target `.roo` directory with the `.md` extension removed.
-- Ensure the `{{repo-full-path}}` placeholder is correctly replaced.
+- Verify the `[project.scripts]` section in `pyproject.toml` is correct, containing only the `roo-conf` entry point pointing to a Python function. (Completed)
+- Confirm the `publish.sh` script exists and is executable. (Completed)
+- Test running `uvx roo-conf` to see if the `uvx` caching issue has resolved itself. (Completed - Still fails, likely due to persistent uvx cache)
+- If `uvx roo-conf` works, confirm the package functionality (listing files). (Skipped - uvx failed)
+- If `uvx roo-conf` still fails, note the error and acknowledge that manual `uv` cache clearing might be necessary (outside the scope of this subtask). (Completed - Noted persistent uvx cache issue)
+- Test running `python -m roo_conf.deploy` to confirm the alternative execution method still works. (Completed - Failed initially due to environment, succeeded after reinstall and using uv run)
+- Test running `./publish.sh` to confirm the publishing workflow works when executed directly. (Completed - Script runs, builds, clears cache, but fails on PyPI authentication)
+- Update documentation (`README.md`, `task.md`) as needed based on testing results. (Completed)
+- Implemented GitHub Actions workflow for automated publishing. (Completed)
+- Modified `publish.sh` to remove version incrementing. (Completed)
 
-## Progress:
-- Created `src/roo_conf/deploy.py` with the main deployment logic.
-- Implemented getting the current working directory using `pathlib`.
-- Implemented creating the target `.roo` directory.
-- Implemented accessing package resources using `importlib.resources`.
-- Implemented iterating through `.md` files in the prompts directory.
-- Implemented reading file content from package resources.
-- Implemented replacing the `{{repo-full-path}}` placeholder.
-- Implemented writing the modified content to the target directory with the `.md` extension removed.
-- Updated `pyproject.toml` to add the `[project.scripts]` entry point for `roo-conf`.
-- Attempted to build and publish the package using `uv build` and `uv publish`.
-- `uv build` was successful, creating `dist/roo_conf-0.1.0.tar.gz` and `dist/roo_conf-0.1.0-py3-none-any.whl`.
-- `uv publish -t $PYPI_API_TOKEN` was successful in publishing the package to PyPi.
-- Modified [`src/roo_conf/deploy.py`](src/roo_conf/deploy.py) to use `argparse` for CLI arguments. Added `--file` argument to indicate deployed path and default behavior to list files if no arguments are provided.
-- Updated [`README.md`](README.md) to include documentation for the new CLI options (`--file` and listing files).
-- Implemented automatic version incrementing by creating [`increment_version.py`](increment_version.py) to modify `pyproject.toml`.
-- Created [`publish.sh`](publish.sh) script to orchestrate version incrementing, cleaning the `dist` directory, building with `hatch build`, and publishing with `uv publish`.
-- Configured the `publish` script in [`pyproject.toml`](pyproject.toml) to execute `./publish.sh`.
-- Successfully built and published version 0.1.3 to PyPI using the [`publish.sh`](publish.sh) script.
+## Findings:
 
-## Learnings:
+- The `[project.scripts]` in `pyproject.toml` is correctly configured.
+- The `uvx roo-conf` command is likely failing due to a persistent cache of the old, invalid wheel within `uvx`.
+- The `uv run roo-conf` command successfully executes the package's main entry point from the local environment.
+- The `./publish.sh` script successfully handles building and clearing the `uv` cache, but requires valid PyPI authentication to complete the publishing step when run locally.
+- Automated publishing has been set up via a GitHub Actions workflow in `.github/workflows/workflow.yml`, triggered on tag pushes.
+- The `publish.sh` script has been modified to remove the version incrementing step, as this is now handled manually before tagging for the automated workflow.
 
-- Confirmed that `importlib.resources.files()` and `read_text()` are suitable for accessing files within the installed package.
-- Verified the correct usage of `pathlib.Path.cwd()` for getting the current working directory.
-- Handled potential issues with file paths and directory creation.
-- The `uv publish` command requires an API token for authentication, which can be passed using the `-t` flag with the environment variable.
-- Successfully integrated `argparse` into the deployment script to handle different command-line behaviors.
-- Updated documentation to reflect new CLI functionality.
-- Encountered challenges with dynamic versioning using `hatch-vcs` and local version identifiers on PyPI, leading to the decision to revert to static versioning managed by a script.
-- Learned that `uv publish` uploads all files in the `dist/` directory by default, necessitating a clean step (`rm -rf dist/`) before building and publishing.
-- Implemented a custom Python script (`increment_version.py`) to programmatically increment the version in `pyproject.toml`.
-- Created a shell script (`publish.sh`) to chain the version increment, clean, build, and publish steps, providing a reliable workflow for releasing new versions.
-- Found that executing a shell script via `[project.scripts]` with `uvx` can have unexpected behavior regarding argument parsing, making direct execution of the shell script (ensuring environment variables are passed) a more reliable approach in this case.
+## Achievements:
+
+- Modified `publish.sh` to remove the version incrementing step.
+- Created `.github/workflows/workflow.yml` for automated publishing via GitHub Actions.
+- Updated `README.md`, `plan.md`, and `task.md` to document the new publishing strategy and recommended local execution method.
+- Investigated the `uvx` caching issue and confirmed `uv run` as a working alternative for local execution.
+- Tested the PyPI API token authentication using `uv publish`, confirming the token is valid when used directly.
