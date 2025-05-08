@@ -1,6 +1,6 @@
 [project]
 name = "roo-conf"
-version = "0.1.6"
+version = "0.1.7"
 description = "A configuration and prompt updater for Roo Code"
 readme = "README.md"
 authors = [
@@ -12,6 +12,9 @@ dependencies = []
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+exclude = ["*.sh"]
 
 [project.scripts]
 roo-conf = "roo_conf.deploy:deploy_prompts"

@@ -31,3 +31,6 @@ This file outlines the tasks completed in the Code-GH subtask.
 - Updated `README.md`, `plan.md`, and `task.md` to document the new publishing strategy and recommended local execution method.
 - Investigated the `uvx` caching issue and confirmed `uv run` as a working alternative for local execution.
 - Tested the PyPI API token authentication using `uv publish`, confirming the token is valid when used directly.
+- Identified and fixed the "invalid console script" error by excluding shell scripts from the wheel build in `pyproject.toml`.
+- Confirmed the corrected package build by successfully installing from the local wheel (`dist/roo_conf-0.1.6-py3-none-any.whl`).
+- Investigated the behavior of `uvx roo-conf` and noted that it appears to resolve to an older version or cached metadata even after rebuilding and clearing the cache.
