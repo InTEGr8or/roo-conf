@@ -1,21 +1,20 @@
-# Implementation Task List for roo-conf (Remote Template Source Feature)
+# Implementation Task List for roo-conf (Componentized Deploy & Edit Refactor)
 
-This file outlines the tasks to be completed for implementing the ability to pull prompt templates from a remote Git repository.
+This file outlines the tasks to be completed for implementing componentized template deployment and refactoring the edit command.
 
 ## Tasks:
 
-- [x] Modify `src/roo_conf/deploy.py` to add a new subcommand `pull` using `argparse`.
-- [x] Implement the `pull` command logic to:
-    - [x] Read the `template_source_repo` URL from the configuration file (`~/.config/roo-conf/config.json`).
-    - [x] If the URL is configured:
-        - [x] If the local templates directory (e.g., `~/.config/roo-conf/templates`) does not exist, clone the repository using `git clone --depth 1 <repo_url> <local_path>`. (Changed from sparse checkout for simplicity and effectiveness)
-        - [x] If the local templates directory exists, remove it and re-clone to ensure a clean state.
-    - [x] Include error handling for git commands and configuration issues.
+- [x] Modify the `deploy` subcommand in `src/roo_conf/deploy.py` to accept optional arguments for template components (e.g., `cdk`, `typescript`).
+- [x] Define a mechanism to map component names to specific files or directories within the template source (package resources or remote clone). This might involve a configuration file or convention. (Implemented using glob patterns for remote source and exact file names for package resources).
 - [x] Modify the `deploy_prompts` function in `src/roo_conf/deploy.py` to:
-    - [x] Check if `template_source_repo` is configured and the local templates directory exists.
-    - [x] If so, read files recursively from the local templates directory.
-    - [x] If not, fall back to reading files from the package resources (`roo_conf.prompts`).
-- [x] Modify the `list_available_prompts` function to recursively list files from the remote source if configured.
-- [x] Add support for configuring `template_source_repo` using the `config` subcommand in `src/roo_conf/deploy.py`.
-- [x] Update `README.md` to include instructions for configuring `template_source_repo`, using the `pull` command, and explaining how the `deploy` command uses the configured source.
-- [x] Update `plan.md` and `task.md` to reflect the implementation of this feature.
+    - [x] Always include default system prompts.
+    - [x] Include templates corresponding to the specified components.
+    - [x] Handle glob patterns (e.g., `cdk/**/*.*`) for component selection (for remote source).
+    - [x] Read the selected files from the appropriate source (package or local clone).
+    - [x] Deploy the selected files to the `.roo` directory.
+- [x] Modify the `edit` subcommand in `src/roo_conf/deploy.py` to open the *source* template file instead of the deployed file.
+- [x] Determine the source file path for the `edit` command based on whether a remote template source is configured and the file exists there, or if it's a package resource. (Editing of package resources is not supported directly).
+- [x] Update the logic in the `edit` command to open the correct source file using the configured editor.
+- [x] Update the `list_available_prompts` function (used by `edit` without arguments) to clearly indicate whether templates are from package resources or the remote source.
+- [x] Update `README.md` to include instructions for componentized deployment and the refactored `edit` command.
+- [x] Update `plan.md` and `task.md` to reflect the implementation of these features (this will be done after the implementation is complete).

@@ -20,27 +20,35 @@ The `roo-conf` command supports several subcommands: `deploy`, `edit`, `config`,
 
 **Note:** While `uvx roo-conf` is the intended way to run installed console scripts, there seems to be a caching issue with `uvx` that prevents it from picking up the latest changes to the package metadata, resulting in an "invalid console script" error. Until this is resolved, it is recommended to use `uv run roo-conf` to execute the package's commands within the project's virtual environment.
 
-### Deploying Prompts
+### Deploying Prompts (Componentized)
 
-Navigate to the root directory of your Git repository in the terminal. Then, execute the `deploy` subcommand using `uv run`:
+Navigate to the root directory of your Git repository in the terminal. Then, execute the `deploy` subcommand using `uv run`.
+
+You can now deploy specific components of the template by providing their names or glob patterns as arguments. Default system prompts are always included.
 
 ```bash
-uv run roo-conf deploy
+uv run roo-conf deploy [component1] [component2] ...
 ```
+
+Replace `[component1] [component2] ...` with the names of the components or glob patterns you want to deploy (e.g., `cdk`, `typescript/**/*`).
+
+If no components are specified, all available templates from the configured source will be deployed.
 
 This will create a `.roo` directory in your current repository (if it doesn't exist) and copy the necessary configuration files into it, replacing the `{{repo-full-path}}` placeholder with the absolute path to your repository. If a remote template source is configured and available, it will use templates from there; otherwise, it will fall back to using templates included in the package.
 
-### Editing Deployed Prompts
+### Editing Source Template Files
 
-To edit a deployed prompt file in your `.roo` directory, use the `edit` subcommand followed by the prompt file name (without the `.md` extension). The file will be opened using your configured editor.
+To edit a source template file, use the `edit` subcommand followed by the template file name. The file will be opened using your configured editor.
 
 ```bash
-uv run roo-conf edit <prompt_name>
+uv run roo-conf edit <template_name>
 ```
 
-Replace `<prompt_name>` with the name of the prompt file you want to edit (e.g., `system-prompt-code-gh`).
+Replace `<template_name>` with the name of the template file you want to edit (e.g., `system-prompt-code-gh.md`). Note that you should now provide the full file name, including the extension.
 
-If you run the `edit` subcommand without a filename, it will list the available prompt files from the configured source (remote if configured and available, otherwise package).
+The `edit` command will attempt to open the source file from your configured remote template repository first. If a remote source is not configured or the file is not found there, it will indicate that the file is a package resource and cannot be edited directly.
+
+If you run the `edit` subcommand without a filename, it will list the available template files from the configured source (remote if configured and available, otherwise package), indicating the source for each.
 
 ```bash
 uv run roo-conf edit
