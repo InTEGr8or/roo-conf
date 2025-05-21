@@ -1,36 +1,21 @@
-# Implementation Task List for roo-conf (Code-GH Subtask)
+# Implementation Task List for roo-conf (Remote Template Source Feature)
 
-This file outlines the tasks completed in the Code-GH subtask.
+This file outlines the tasks to be completed for implementing the ability to pull prompt templates from a remote Git repository.
 
 ## Tasks:
 
-- Verify the `[project.scripts]` section in `pyproject.toml` is correct, containing only the `roo-conf` entry point pointing to a Python function. (Completed)
-- Confirm the `publish.sh` script exists and is executable. (Completed)
-- Test running `uvx roo-conf` to see if the `uvx` caching issue has resolved itself. (Completed - Still fails, likely due to persistent uvx cache)
-- If `uvx roo-conf` works, confirm the package functionality (listing files). (Skipped - uvx failed)
-- If `uvx roo-conf` still fails, note the error and acknowledge that manual `uv` cache clearing might be necessary (outside the scope of this subtask). (Completed - Noted persistent uvx cache issue)
-- Test running `python -m roo_conf.deploy` to confirm the alternative execution method still works. (Completed - Failed initially due to environment, succeeded after reinstall and using uv run)
-- Test running `./publish.sh` to confirm the publishing workflow works when executed directly. (Completed - Script runs, builds, clears cache, but fails on PyPI authentication)
-- Update documentation (`README.md`, `task.md`) as needed based on testing results. (Completed)
-- Implemented GitHub Actions workflow for automated publishing. (Completed)
-- Modified `publish.sh` to remove version incrementing. (Completed)
-
-## Findings:
-
-- The `[project.scripts]` in `pyproject.toml` is correctly configured.
-- The `uvx roo-conf` command is likely failing due to a persistent cache of the old, invalid wheel within `uvx`.
-- The `uv run roo-conf` command successfully executes the package's main entry point from the local environment.
-- The `./publish.sh` script successfully handles building and clearing the `uv` cache, but requires valid PyPI authentication to complete the publishing step when run locally.
-- Automated publishing has been set up via a GitHub Actions workflow in `.github/workflows/workflow.yml`, triggered on tag pushes.
-- The `publish.sh` script has been modified to remove the version incrementing step, as this is now handled manually before tagging for the automated workflow.
-
-## Achievements:
-
-- Modified `publish.sh` to remove the version incrementing step.
-- Created `.github/workflows/workflow.yml` for automated publishing via GitHub Actions.
-- Updated `README.md`, `plan.md`, and `task.md` to document the new publishing strategy and recommended local execution method.
-- Investigated the `uvx` caching issue and confirmed `uv run` as a working alternative for local execution.
-- Tested the PyPI API token authentication using `uv publish`, confirming the token is valid when used directly.
-- Identified and fixed the "invalid console script" error by excluding shell scripts from the wheel build in `pyproject.toml`.
-- Confirmed the corrected package build by successfully installing from the local wheel (`dist/roo_conf-0.1.6-py3-none-any.whl`).
-- Investigated the behavior of `uvx roo-conf` and noted that it appears to resolve to an older version or cached metadata even after rebuilding and clearing the cache.
+- [x] Modify `src/roo_conf/deploy.py` to add a new subcommand `pull` using `argparse`.
+- [x] Implement the `pull` command logic to:
+    - [x] Read the `template_source_repo` URL from the configuration file (`~/.config/roo-conf/config.json`).
+    - [x] If the URL is configured:
+        - [x] If the local templates directory (e.g., `~/.config/roo-conf/templates`) does not exist, clone the repository using `git clone --depth 1 <repo_url> <local_path>`. (Changed from sparse checkout for simplicity and effectiveness)
+        - [x] If the local templates directory exists, remove it and re-clone to ensure a clean state.
+    - [x] Include error handling for git commands and configuration issues.
+- [x] Modify the `deploy_prompts` function in `src/roo_conf/deploy.py` to:
+    - [x] Check if `template_source_repo` is configured and the local templates directory exists.
+    - [x] If so, read files recursively from the local templates directory.
+    - [x] If not, fall back to reading files from the package resources (`roo_conf.prompts`).
+- [x] Modify the `list_available_prompts` function to recursively list files from the remote source if configured.
+- [x] Add support for configuring `template_source_repo` using the `config` subcommand in `src/roo_conf/deploy.py`.
+- [x] Update `README.md` to include instructions for configuring `template_source_repo`, using the `pull` command, and explaining how the `deploy` command uses the configured source.
+- [x] Update `plan.md` and `task.md` to reflect the implementation of this feature.
