@@ -53,7 +53,11 @@ def list_available_prompts(args):
     if template_source_repo and TEMPLATES_DIR.exists():
         # List from remote source
         print("From remote source:")
-        for root, _, files in os.walk(TEMPLATES_DIR):
+        for root, dirs, files in os.walk(TEMPLATES_DIR):
+            # Exclude .git directory
+            if '.git' in dirs:
+                dirs.remove('.git')
+
             for file in files:
                 relative_path = pathlib.Path(root) / file
                 # Make path relative to TEMPLATES_DIR for display
