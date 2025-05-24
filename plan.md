@@ -1,10 +1,10 @@
 # Plan for Converting Bash Script to Python Package (roo-conf)
 
-This document outlines the steps to convert a bash script that deploys configuration files into a Python package executable via `uvx roo-conf`, including new requirements for version management and command-line interface enhancements, automated publishing via GitHub Actions, the ability to pull prompt templates from a remote Git repository, componentized template deployment, and editing source template files.
+This document outlines the steps to convert a bash script that deploys configuration files into a Python package executable via `uvx roo-conf`, including new requirements for version management and command-line interface enhancements, automated publishing via GitHub Actions, the ability to pull prompt templates from a remote Git repository, componentized template deployment, editing source template files, and synchronizing VS Code custom modes.
 
 ## Objective
 
-Create a Python package `roo-conf` that can be installed and executed using `uvx`. The package will deploy selected markdown files from either its package resources or a configured remote Git repository (pulled using a depth-1 clone) to a `.roo` directory in the current working directory, removing the `.md` extension and replacing a `{{repo-full-path}}` placeholder with the current repository path. The package will provide command-line interfaces for deploying (with component selection), editing source templates, configuring, and pulling prompt templates. Automated publishing to PyPI will be handled by a GitHub Actions workflow triggered by version changes.
+Create a Python package `roo-conf` that can be installed and executed using `uvx`. The package will deploy selected markdown files from either its package resources or a configured remote Git repository (pulled using a depth-1 clone) to a `.roo` directory in the current working directory, removing the `.md` extension and replacing a `{{repo-full-path}}` placeholder with the current repository path. The package will provide command-line interfaces for deploying (with component selection), editing source templates, configuring, pulling prompt templates, and synchronizing VS Code custom modes. Automated publishing to PyPI will be handled by a GitHub Actions workflow triggered by version changes.
 
 ## Current State
 
@@ -22,60 +22,61 @@ Create a Python package `roo-conf` that can be installed and executed using `uvx
 
 ## Detailed Plan
 
-1.  **Project Structure:**
-    *   The markdown files are located in `src/roo_conf/prompts/`.
-    *   The bash script [`transfer-to-repo.sh`](docs/source/roo/transfer-to-repo.sh) is kept in `docs/source/roo/` for reference.
-    *   Documentation files (`README.md`, `plan.md`, `task.md`) are in the project root.
-    *   Version management script (`increment_version.py`) and a local build script (`publish.sh`) are in the project root.
-    *   A GitHub Actions workflow file (`.github/workflows/workflow.yml`) exists for automated publishing.
-    *   A local directory for cloned templates (e.g., `~/.config/roo-conf/templates`) is used for storing remote templates.
+1.  **Add `sync-modes` Subcommand:**
+    *   Modify [`src/roo_conf/deploy.py`](src/roo_conf/deploy.py) (or create a new file like `src/roo_conf/sync.py` and register it) to include a new subcommand `sync-modes` using `argparse`.
+    *   This subcommand will not require any arguments initially.
 
-2.  **Address uvx/Local Execution:**
-    *   Confirm that the `[project.scripts]` section in [`pyproject.toml`](pyproject.toml) only contains the entry point for `roo-conf` pointing to a Python function (`roo_conf.deploy:deploy_prompts`).
-    *   Understand that the persistent `uvx roo-conf` error is likely due to `uvx` caching a previously built and published wheel that contained an invalid console script entry.
-    *   Recommend using `uv run roo-conf` for local execution of the package's console script, as this reliably uses the local environment and avoids the `uvx` caching issue.
+2.  **Locate `custom_modes.yaml` Files (POSIX):**
+    *   Implement a function (e.g., `find_vscode_settings_paths`) that determines the potential paths to the `settings` directories for VS Code and VS Code Insiders on POSIX.
+    *   This function will use the user's home directory path (available from the environment) and the conventional relative paths:
+        *   VS Code Insiders: `~/.vscode-server-insiders/data/User/globalStorage/rooveterinaryinc.roo-cline/settings/custom_modes.yaml`
+        *   VS Code: `~/.vscode-server/data/User/globalStorage/rooveterinaryinc.roo-cline/settings/custom_modes.yaml`
+    *   Construct the full paths to the `custom_modes.yaml` files using these conventions.
+    *   Verify the existence of these files. If a file is not found, report an error or warning but continue if the other file exists.
 
-3.  **Automated Publishing with GitHub Actions:**
-    *   The `publish.sh` script has been modified to remove the version incrementing step and serves primarily as a local build script. (Completed)
-    *   A GitHub Actions workflow in `.github/workflows/workflow.yml` is configured to trigger on pushes to tags (`v*`), build the package, and publish it to PyPI using a secure method for authentication. (Completed)
+3.  **Determine Latest Version:**
+    *   For each existing `custom_modes.yaml` file found, get the last modified timestamp.
+    *   Compare the timestamps to identify the most recently modified file.
+    *   If only one file exists, that is considered the latest version.
 
-4.  **Implement Remote Template Source:**
-    *   The `pull` subcommand has been added to `src/roo_conf/deploy.py`. (Completed)
-    *   The `pull` command logic has been implemented to clone the `template_source_repo` using `git clone --depth 1` and re-clone for updates. Error handling is included. (Completed)
-    *   The `deploy_prompts` function has been modified to read markdown files from the local templates directory if configured, falling back to package resources otherwise. (Completed)
-    *   Support for configuring `template_source_repo` using the `config` subcommand has been added. (Completed)
-    *   The `list_available_prompts` function has been modified to list from the remote source if configured. (Completed)
+4.  **Synchronize Files:**
+    *   Read the content of the latest `custom_modes.yaml` file.
+    *   Copy the content of the latest file to the other location(s) where the `custom_modes.yaml` file exists.
+    *   Use Python's file I/O operations for reading and writing. Ensure necessary directories are created if they don't exist (though the settings directories should exist if VS Code is installed).
 
-5.  **Componentized Template Deployment:**
-    *   Modify the `deploy` subcommand in `src/roo_conf/deploy.py` to accept optional arguments for template components (e.g., `cdk`, `typescript`). (Completed)
-    *   Define a mechanism to map component names to specific files or directories within the template source (package resources or remote clone). This might involve a configuration file or convention. (Completed)
-    *   Modify the `deploy_prompts` function to:
-        *   Always include default system prompts. (Completed)
-        *   Include templates corresponding to the specified components. (Completed)
-        *   Handle glob patterns (e.g., `cdk/**/*.*`) for component selection. (Completed)
-        *   Read the selected files from the appropriate source (package or local clone). (Completed)
-        *   Deploy the selected files to the `.roo` directory. (Completed)
+5.  **Error Handling and Reporting:**
+    *   Include error handling for cases where files or directories are not found.
+    *   Report which file was considered the latest and where it was copied.
+    *   Report any errors encountered during the process.
 
-6.  **Refactor Edit Command:**
-    *   Modify the `edit` subcommand in `src/roo_conf/deploy.py` to open the *source* template file instead of the deployed file. (Completed)
-    *   Determine the source file path based on whether a remote template source is configured and the file exists there, or if it's a package resource. (Completed)
-    *   Update the logic to open the correct source file using the configured editor. (Completed)
-    *   Update the `list_available_prompts` function (used by `edit` without arguments) to clearly indicate whether templates are from package resources or the remote source. (Completed)
+6.  **Modularity for Windows Extension:**
+    *   Structure the code for finding the paths (Step 2) in a way that can be easily extended for different operating systems. This might involve an OS-checking mechanism and separate functions for finding paths on POSIX and Windows.
+    *   The core synchronization logic (Steps 3 and 4) should be OS-agnostic, operating on the determined file paths.
 
-7.  **Documentation Files:**
-    *   Update [`README.md`](README.md) to include instructions for componentized deployment and the refactored `edit` command. (Completed)
-    *   Update [`task.md`](task.md) to reflect the implementation of these features. (Completed)
-    *   [`plan.md`](plan.md) has been updated to reflect the implementation of these features. (Completed)
+7.  **Integration:**
+    *   Add the new `sync-modes` subcommand to the main `roo-conf` entry point in [`pyproject.toml`](pyproject.toml) and the CLI parsing logic in `src/roo_conf/deploy.py` (or the new sync file).
 
-8.  **Spawn Code-GH Subtask:**
-    *   Spawn a new task in 'Code-GH' mode to implement the changes outlined in steps 5 and 6 and update the documentation files as described in step 7. (Completed)
+### Future Considerations (Windows Support)
 
-## Workflow Diagram
+*   Investigate methods for finding VS Code installation paths on Windows. This might involve:
+    *   Checking environment variables (e.g., `VSCODE_CWD`).
+    *   Querying the Windows Registry.
+    *   Searching in known installation locations (e.g., `%APPDATA%\Code\User\`, `%APPDATA%\Code - Insiders\User\`).
+*   Implement a Windows-specific version of the `find_vscode_settings_paths` function.
+
+### Workflow Diagram
 
 ```mermaid
 graph TD
-    A[Start Task] --> B{Review Feedback & Code};
-    B --> C[Update Plan with Componentized Deploy & Edit Refactor];
-    C --> D[Update task.md for New Features];
-    D --> E[Spawn Code-GH Subtask for Implementation];
-    E --> F[End Task];
+    A[Start sync-modes command] --> B{Determine OS};
+    B -- POSIX --> C[Find VS Code Settings Paths POSIX Convention];
+    B -- Windows (Future) --> D[Find VS Code Settings Paths Windows Logic];
+    C --> E{Verify File Existence};
+    D --> E;
+    E -- Files Found --> F[Determine Latest custom_modes.yaml];
+    E -- No Files Found --> G[Report Error/Warning];
+    F --> H[Read Latest File Content];
+    H --> I[Copy Content to Other Locations];
+    I --> J[Report Success];
+    G --> K[End Task];
+    J --> K;

@@ -7,10 +7,13 @@ import sys
 import json
 import shutil
 import glob
+import platform
+import stat
+from .settings_manager import manage_vscode_settings_paths, find_vscode_settings_paths
 
 CONFIG_DIR = pathlib.Path("~/.config/roo-conf").expanduser()
 CONFIG_FILE = CONFIG_DIR / "config.json"
-TEMPLATES_DIR = CONFIG_DIR / "templates"
+TEMPLATES_DIR = CONFIG_DIR / "templates" # This is the directory for remote templates
 
 def get_config():
     """Reads the configuration file."""
@@ -62,8 +65,10 @@ def list_available_prompts(args):
                 relative_path = pathlib.Path(root) / file
                 # Make path relative to TEMPLATES_DIR for display
                 display_path = relative_path.relative_to(TEMPLATES_DIR)
-                print(f"- {display_path}")
-                found_prompts = True
+                # Only list markdown files for now
+                if display_path.suffix == '.md':
+                    print(f"- {display_path}")
+                    found_prompts = True
 
     # List from package resources
     # Always list package resources, even if remote is configured, for completeness
@@ -297,8 +302,120 @@ def pull_templates(args):
          print("Error: git command not found. Please ensure Git is installed and in your PATH.")
 
 
+def sync_modes(args):
+    """
+    Synchronizes custom_modes.yaml files between VS Code and VS Code Insiders.
+    Finds and stores paths in the configuration file if not already present.
+    Copies the latest file to the remote templates directory.
+    """
+    print("Synchronizing custom modes...")
+    settings_files = manage_vscode_settings_paths(get_config, set_config)
+
+    # Get all potential settings paths, regardless of existence, to check if directories exist
+    all_potential_paths = find_vscode_settings_paths()
+    settings_directories_exist = all(pathlib.Path(p).parent.exists() for p in all_potential_paths)
+
+
+    if not settings_files and not settings_directories_exist:
+        print("No custom_modes.yaml files found or configured, and settings directories do not exist.")
+        return
+
+    if not settings_files and settings_directories_exist:
+         print("Settings directories found, but no custom_modes.yaml files exist yet. No synchronization needed at this time.")
+         return
+
+
+    if len(settings_files) < 1:
+         print("No existing custom_modes.yaml files found to synchronize.")
+         return
+
+
+    latest_file = None
+    latest_mtime = 0
+
+    # Determine the latest file among existing files
+    for file_path in settings_files:
+        try:
+            mtime = file_path.stat().st_mtime
+            if mtime > latest_mtime:
+                latest_mtime = mtime
+                latest_file = file_path
+        except OSError as e:
+            print(f"Error accessing file {file_path}: {e}")
+            # Continue to the next file
+
+    if not latest_file:
+        print("Could not determine the latest custom_modes.yaml file from existing files.")
+        return
+
+    print(f"Latest custom_modes.yaml found: {latest_file}")
+
+    try:
+        latest_content = latest_file.read_text()
+    except Exception as e:
+        print(f"Error reading latest file {latest_file}: {e}")
+        return
+
+    # Copy the content to other existing files
+    if len(settings_files) > 1:
+        for file_path in settings_files:
+            if file_path != latest_file:
+                original_permissions = None
+                try:
+                    # Store original permissions and make the file writable
+                    original_permissions = file_path.stat().st_mode
+                    os.chmod(file_path, original_permissions | stat.S_IWRITE)
+
+                    file_path.write_text(latest_content)
+                    print(f"Copied content to {file_path}")
+
+                except Exception as e:
+                    print(f"Error writing to file {file_path}: {e}")
+                finally:
+                    # Restore original permissions if they were changed
+                    if original_permissions is not None:
+                        try:
+                            os.chmod(file_path, original_permissions)
+                        except Exception as e:
+                            print(f"Error restoring permissions for {file_path}: {e}")
+    else:
+        print("Only one existing custom_modes.yaml file found. No other files to synchronize with.")
+
+
+    # Copy the latest file to the remote templates directory
+    target_remote_template_file = TEMPLATES_DIR / "custom_modes.yaml"
+
+    try:
+        # Ensure the target directory exists
+        target_remote_template_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # Ensure the target file is writable if it exists
+        if target_remote_template_file.exists():
+             original_permissions = None
+             try:
+                 original_permissions = target_remote_template_file.stat().st_mode
+                 os.chmod(target_remote_template_file, original_permissions | stat.S_IWRITE)
+             except Exception as e:
+                 print(f"Warning: Could not change permissions for {target_remote_template_file}: {e}")
+
+
+        shutil.copy2(latest_file, target_remote_template_file)
+        print(f"Copied latest custom_modes.yaml to remote templates directory: {target_remote_template_file}")
+
+        # Restore original permissions if they were changed
+        if target_remote_template_file.exists() and original_permissions is not None:
+             try:
+                 os.chmod(target_remote_template_file, original_permissions)
+             except Exception as e:
+                 print(f"Warning: Could not restore permissions for {target_remote_template_file}: {e}")
+
+
+    except Exception as e:
+        print(f"Error copying latest custom_modes.yaml to remote templates directory: {e}")
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Manage roo-conf prompts.")
+    parser = argparse.ArgumentParser(description="Manage roo-conf prompts and settings.")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Deploy command
@@ -336,6 +453,10 @@ def main():
     # Pull command
     pull_parser = subparsers.add_parser("pull", help="Pull prompt templates from the configured remote repository.")
     pull_parser.set_defaults(func=pull_templates)
+
+    # Sync Modes command
+    sync_modes_parser = subparsers.add_parser("sync-modes", help="Synchronize custom_modes.yaml between VS Code and VS Code Insiders.")
+    sync_modes_parser.set_defaults(func=sync_modes)
 
 
     args = parser.parse_args()

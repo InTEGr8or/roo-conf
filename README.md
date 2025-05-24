@@ -16,7 +16,7 @@ uv pip install roo-conf
 
 ## Usage
 
-The `roo-conf` command supports several subcommands: `deploy`, `edit`, `config`, and `pull`.
+The `roo-conf` command supports several subcommands: `deploy`, `edit`, `config`, `pull`, and `sync-modes`.
 
 **Note:** While `uvx roo-conf` is the intended way to run installed console scripts, there seems to be a caching issue with `uvx` that prevents it from picking up the latest changes to the package metadata, resulting in an "invalid console script" error. Until this is resolved, it is recommended to use `uv run roo-conf` to execute the package's commands within the project's virtual environment.
 
@@ -48,7 +48,7 @@ Replace `<template_name>` with the name of the template file you want to edit (e
 
 The `edit` command will attempt to open the source file from your configured remote template repository first. If a remote source is not configured or the file is not found there, it will indicate that the file is a package resource and cannot be edited directly.
 
-If you run the `edit` subcommand without a filename, it will list the available template files from the configured source (remote if configured and available, otherwise package), indicating the source for each.
+If you run the `edit` subcommand without a filename, it will list the available template files from the configured source (remote if configured and available, otherwise package). When listing from a remote source, it will exclude the `.git` directory and only list markdown files.
 
 ```bash
 uv run roo-conf edit
@@ -77,6 +77,16 @@ If you have configured a remote template source repository, you can pull the lat
 ```bash
 uv run roo-conf pull
 ```
+
+### Synchronizing Custom Modes
+
+The `sync-modes` command synchronizes the `custom_modes.yaml` file between your VS Code and VS Code Insiders installations. It finds the latest version of the file based on modification time and copies it to the other location(s).
+
+```bash
+uv run roo-conf sync-modes
+```
+
+This command is useful for keeping your custom modes consistent across different VS Code installations.
 
 ## Development
 
