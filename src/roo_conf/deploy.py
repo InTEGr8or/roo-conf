@@ -9,7 +9,7 @@ import shutil
 import glob
 import platform
 import stat
-from .settings_manager import manage_vscode_settings_paths, find_vscode_settings_paths
+from .settings_manager import manage_vscode_settings_paths, find_vscode_settings_components
 
 CONFIG_DIR = pathlib.Path("~/.config/roo-conf").expanduser()
 CONFIG_FILE = CONFIG_DIR / "config.json"
@@ -306,59 +306,88 @@ def sync_modes(args):
     """
     Synchronizes custom_modes.yaml files between VS Code and VS Code Insiders.
     Finds and stores paths in the configuration file if not already present.
+    Handles cases where the file exists in one or both locations.
     Copies the latest file to the remote templates directory.
     """
     print("Synchronizing custom modes...")
-    settings_files = manage_vscode_settings_paths(get_config, set_config)
+    # Get all potential paths and existing files
+    all_potential_components = find_vscode_settings_components()
+    existing_files = manage_vscode_settings_paths(get_config, set_config)
+    existing_file_paths_str = [str(f) for f in existing_files]
 
-    # Get all potential settings paths, regardless of existence, to check if directories exist
-    all_potential_paths = find_vscode_settings_paths()
-    settings_directories_exist = all(pathlib.Path(p).parent.exists() for p in all_potential_paths)
-
-
-    if not settings_files and not settings_directories_exist:
-        print("No custom_modes.yaml files found or configured, and settings directories do not exist.")
+    if not all_potential_components:
+        print("Could not determine potential VS Code settings paths.")
         return
 
-    if not settings_files and settings_directories_exist:
-         print("Settings directories found, but no custom_modes.yaml files exist yet. No synchronization needed at this time.")
-         return
+    potential_paths_str = [str(pathlib.Path(item['parent_path']) / item['relative_path']) for item in all_potential_components]
 
+    if len(existing_files) == 0:
+        print("No existing custom_modes.yaml files found.")
+        # Check if the parent directories exist
+        parent_dirs_exist = all(pathlib.Path(item['parent_path']).exists() for item in all_potential_components)
+        if parent_dirs_exist:
+             print("Settings directories found, but no custom_modes.yaml files exist yet. No synchronization needed at this time.")
+        else:
+             print("Could not find settings directories for VS Code or VS Code Insiders.")
+        return
 
-    if len(settings_files) < 1:
-         print("No existing custom_modes.yaml files found to synchronize.")
-         return
+    elif len(existing_files) == 1:
+        print("Found custom_modes.yaml in only one location.")
+        existing_file_path = existing_file_paths_str[0]
+        missing_file_path = None
 
+        # Find the missing path
+        for potential_path in potential_paths_str:
+            if potential_path != existing_file_path:
+                missing_file_path = potential_path
+                break
 
-    latest_file = None
-    latest_mtime = 0
+        if missing_file_path:
+            missing_file_path_obj = pathlib.Path(missing_file_path)
+            missing_parent_dir = missing_file_path_obj.parent
 
-    # Determine the latest file among existing files
-    for file_path in settings_files:
+            if missing_parent_dir.exists():
+                print(f"Copying {existing_file_path} to {missing_file_path}")
+                try:
+                    shutil.copy2(existing_file_path, missing_file_path)
+                    print("Synchronization complete.")
+                except Exception as e:
+                    print(f"Error copying file to {missing_file_path}: {e}")
+            else:
+                print(f"Cannot copy file: Missing directory {missing_parent_dir} does not exist.")
+        else:
+             print("Could not determine the missing settings path.")
+
+    elif len(existing_files) == 2:
+        print("Found custom_modes.yaml in both locations. Synchronizing based on latest modification time.")
+        latest_file = None
+        latest_mtime = 0
+
+        # Determine the latest file among existing files
+        for file_path in existing_files:
+            try:
+                mtime = file_path.stat().st_mtime
+                if mtime > latest_mtime:
+                    latest_mtime = mtime
+                    latest_file = file_path
+            except OSError as e:
+                print(f"Error accessing file {file_path}: {e}")
+                # Continue to the next file
+
+        if not latest_file:
+            print("Could not determine the latest custom_modes.yaml file from existing files.")
+            return
+
+        print(f"Latest custom_modes.yaml found: {latest_file}")
+
         try:
-            mtime = file_path.stat().st_mtime
-            if mtime > latest_mtime:
-                latest_mtime = mtime
-                latest_file = file_path
-        except OSError as e:
-            print(f"Error accessing file {file_path}: {e}")
-            # Continue to the next file
+            latest_content = latest_file.read_text()
+        except Exception as e:
+            print(f"Error reading latest file {latest_file}: {e}")
+            return
 
-    if not latest_file:
-        print("Could not determine the latest custom_modes.yaml file from existing files.")
-        return
-
-    print(f"Latest custom_modes.yaml found: {latest_file}")
-
-    try:
-        latest_content = latest_file.read_text()
-    except Exception as e:
-        print(f"Error reading latest file {latest_file}: {e}")
-        return
-
-    # Copy the content to other existing files
-    if len(settings_files) > 1:
-        for file_path in settings_files:
+        # Copy the content to the other existing file
+        for file_path in existing_files:
             if file_path != latest_file:
                 original_permissions = None
                 try:
@@ -378,40 +407,55 @@ def sync_modes(args):
                             os.chmod(file_path, original_permissions)
                         except Exception as e:
                             print(f"Error restoring permissions for {file_path}: {e}")
+        print("Synchronization complete.")
+
     else:
-        print("Only one existing custom_modes.yaml file found. No other files to synchronize with.")
+        print(f"Unexpected number of custom_modes.yaml files found: {len(existing_files)}. Expected 0, 1, or 2.")
+        return
 
 
-    # Copy the latest file to the remote templates directory
-    target_remote_template_file = TEMPLATES_DIR / "custom_modes.yaml"
+    # Copy the latest file (or the single existing file) to the remote templates directory
+    # Determine the source file for copying to remote templates
+    source_for_remote = None
+    if len(existing_files) == 2:
+        # If both exist, use the latest determined earlier
+        source_for_remote = latest_file
+    elif len(existing_files) == 1:
+        # If only one exists, use that one
+        source_for_remote = existing_files[0]
 
-    try:
-        # Ensure the target directory exists
-        target_remote_template_file.parent.mkdir(parents=True, exist_ok=True)
+    if source_for_remote:
+        target_remote_template_file = TEMPLATES_DIR / "custom_modes.yaml"
 
-        # Ensure the target file is writable if it exists
-        if target_remote_template_file.exists():
-             original_permissions = None
-             try:
-                 original_permissions = target_remote_template_file.stat().st_mode
-                 os.chmod(target_remote_template_file, original_permissions | stat.S_IWRITE)
-             except Exception as e:
-                 print(f"Warning: Could not change permissions for {target_remote_template_file}: {e}")
+        try:
+            # Ensure the target directory exists
+            target_remote_template_file.parent.mkdir(parents=True, exist_ok=True)
 
-
-        shutil.copy2(latest_file, target_remote_template_file)
-        print(f"Copied latest custom_modes.yaml to remote templates directory: {target_remote_template_file}")
-
-        # Restore original permissions if they were changed
-        if target_remote_template_file.exists() and original_permissions is not None:
-             try:
-                 os.chmod(target_remote_template_file, original_permissions)
-             except Exception as e:
-                 print(f"Warning: Could not restore permissions for {target_remote_template_file}: {e}")
+            # Ensure the target file is writable if it exists
+            if target_remote_template_file.exists():
+                 original_permissions = None
+                 try:
+                     original_permissions = target_remote_template_file.stat().st_mode
+                     os.chmod(target_remote_template_file, original_permissions | stat.S_IWRITE)
+                 except Exception as e:
+                     print(f"Warning: Could not change permissions for {target_remote_template_file}: {e}")
 
 
-    except Exception as e:
-        print(f"Error copying latest custom_modes.yaml to remote templates directory: {e}")
+            shutil.copy2(source_for_remote, target_remote_template_file)
+            print(f"Copied custom_modes.yaml to remote templates directory: {target_remote_template_file}")
+
+            # Restore original permissions if they were changed
+            if target_remote_template_file.exists() and original_permissions is not None:
+                 try:
+                     os.chmod(target_remote_template_file, original_permissions)
+                 except Exception as e:
+                     print(f"Warning: Could not restore permissions for {target_remote_template_file}: {e}")
+
+
+        except Exception as e:
+            print(f"Error copying custom_modes.yaml to remote templates directory: {e}")
+    else:
+        print("No custom_modes.yaml file found to copy to the remote templates directory.")
 
 
 def main():

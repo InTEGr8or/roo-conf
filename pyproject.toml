@@ -17,4 +17,4 @@ build-backend = "hatchling.build"
 exclude = ["*.sh"]
 
 [project.scripts]
-roo-conf = "roo_conf.deploy:main"
+roo-conf = "roo_conf:main"

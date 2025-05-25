@@ -1,10 +1,10 @@
-# Plan for Converting Bash Script to Python Package (roo-conf)
+# Plan for Converting Bash Script to Python Package (roo-conf) and Adding Conversation Extraction
 
-This document outlines the steps to convert a bash script that deploys configuration files into a Python package executable via `uvx roo-conf`, including new requirements for version management and command-line interface enhancements, automated publishing via GitHub Actions, the ability to pull prompt templates from a remote Git repository, componentized template deployment, editing source template files, and synchronizing VS Code custom modes.
+This document outlines the steps to convert a bash script that deploys configuration files into a Python package executable via `uvx roo-conf`, including new requirements for version management and command-line interface enhancements, automated publishing via GitHub Actions, the ability to pull prompt templates from a remote Git repository, componentized template deployment, editing source template files, synchronizing VS Code custom modes, and extracting conversations to Markdown.
 
 ## Objective
 
-Create a Python package `roo-conf` that can be installed and executed using `uvx`. The package will deploy selected markdown files from either its package resources or a configured remote Git repository (pulled using a depth-1 clone) to a `.roo` directory in the current working directory, removing the `.md` extension and replacing a `{{repo-full-path}}` placeholder with the current repository path. The package will provide command-line interfaces for deploying (with component selection), editing source templates, configuring, pulling prompt templates, and synchronizing VS Code custom modes. Automated publishing to PyPI will be handled by a GitHub Actions workflow triggered by version changes.
+Create a Python package `roo-conf` that can be installed and executed using `uvx`. The package will deploy selected markdown files from either its package resources or a configured remote Git repository (pulled using a depth-1 clone) to a `.roo` directory in the current working directory, removing the `.md` extension and replacing a `{{repo-full-path}}` placeholder with the current repository path. The package will provide command-line interfaces for deploying (with component selection), editing source templates, configuring, pulling prompt templates, synchronizing VS Code custom modes, and extracting conversations to Markdown. Automated publishing to PyPI will be handled by a GitHub Actions workflow triggered by version changes.
 
 ## Current State
 
@@ -19,64 +19,82 @@ Create a Python package `roo-conf` that can be installed and executed using `uvx
 *   A GitHub Actions workflow file (`.github/workflows/workflow.yml`) has been created for automated publishing.
 *   The remote template source feature has been implemented, allowing pulling templates from a Git repo to `~/.config/roo-conf/templates` using a depth-1 clone and re-clone for updates.
 *   Componentized template deployment and refactoring of the edit command have been implemented.
+*   The `sync-modes` command has been partially implemented, with logic for finding VS Code settings paths and synchronizing `custom_modes.yaml` files.
 
-## Detailed Plan
+## Detailed Plan for Extracting Conversations to Markdown
 
-1.  **Add `sync-modes` Subcommand:**
-    *   Modify [`src/roo_conf/deploy.py`](src/roo_conf/deploy.py) (or create a new file like `src/roo_conf/sync.py` and register it) to include a new subcommand `sync-modes` using `argparse`.
-    *   This subcommand will not require any arguments initially.
+This plan outlines the steps to add a new feature to `roo-conf` that extracts conversations related to a specific repository from VS Code and VS Code Insiders installations and saves them as Markdown files.
 
-2.  **Locate `custom_modes.yaml` Files (POSIX):**
-    *   Implement a function (e.g., `find_vscode_settings_paths`) that determines the potential paths to the `settings` directories for VS Code and VS Code Insiders on POSIX.
-    *   This function will use the user's home directory path (available from the environment) and the conventional relative paths:
-        *   VS Code Insiders: `~/.vscode-server-insiders/data/User/globalStorage/rooveterinaryinc.roo-cline/settings/custom_modes.yaml`
-        *   VS Code: `~/.vscode-server/data/User/globalStorage/rooveterinaryinc.roo-cline/settings/custom_modes.yaml`
-    *   Construct the full paths to the `custom_modes.yaml` files using these conventions.
-    *   Verify the existence of these files. If a file is not found, report an error or warning but continue if the other file exists.
+### Objective
 
-3.  **Determine Latest Version:**
-    *   For each existing `custom_modes.yaml` file found, get the last modified timestamp.
-    *   Compare the timestamps to identify the most recently modified file.
-    *   If only one file exists, that is considered the latest version.
+Add a command to `roo-conf` that identifies conversations associated with a given repository in both VS Code and VS Code Insiders task history, extracts the conversation data, converts it to Markdown format, and saves the Markdown files within the repository's `.roo-conf/conversations/` subfolder.
 
-4.  **Synchronize Files:**
-    *   Read the content of the latest `custom_modes.yaml` file.
-    *   Copy the content of the latest file to the other location(s) where the `custom_modes.yaml` file exists.
-    *   Use Python's file I/O operations for reading and writing. Ensure necessary directories are created if they don't exist (though the settings directories should exist if VS Code is installed).
+### Detailed Plan
 
-5.  **Error Handling and Reporting:**
-    *   Include error handling for cases where files or directories are not found.
-    *   Report which file was considered the latest and where it was copied.
+1.  **Add `extract-conversations` Subcommand:**
+    *   Add a new subcommand `extract-conversations` to the `roo-conf` CLI using `argparse`.
+    *   This subcommand will require an argument for the target repository path (defaulting to the current working directory).
+
+2.  **Locate VS Code Global State Files:**
+    *   Utilize the logic developed for the `sync-modes` command to find the global storage directories for both VS Code and VS Code Insiders (`~/.vscode-server[-insiders]/data/User/globalStorage/rooveterinaryinc.roo-cline/`).
+    *   Determine the exact filename of the global state file within these directories that stores the "taskHistory". This may require inspecting the Roo-Code source code further or examining the contents of files in the global storage directory during implementation. Assume a conventional name like `globalState.json` for planning purposes, but be prepared to adjust.
+    *   Construct the full paths to the global state files for both installations.
+
+3.  **Read and Parse Task History:**
+    *   For each identified global state file, read its content.
+    *   Parse the file content (assuming it's JSON) to extract the data associated with the "taskHistory" key. This data is expected to be an array of `HistoryItem` objects.
+    *   Implement error handling for file not found or parsing errors.
+
+4.  **Filter Conversations by Repository:**
+    *   Iterate through the array of `HistoryItem` objects obtained from the task history.
+    *   For each `HistoryItem`, check if the `workspace` field exists and if its value matches the target repository path provided as a command argument.
+
+5.  **Extract Conversation Data:**
+    *   For each `HistoryItem` that matches the target repository:
+        *   Construct the path to the corresponding task directory within the global storage (`<global_storage_path>/tasks/<task_id>/`).
+        *   Construct the full paths to `api_conversation_history.json` and `ui_messages.json` within the task directory.
+        *   Read the content of `api_conversation_history.json` and `ui_messages.json`.
+        *   Implement error handling for file not found or parsing errors for these files.
+
+6.  **Convert Conversation to Markdown:**
+    *   Implement a function to convert the data from `api_conversation_history.json` and `ui_messages.json` into a single Markdown string.
+    *   This conversion should format the conversation turns, including roles (user/assistant), message content, and potentially timestamps, in a readable Markdown format.
+
+7.  **Save Conversations as Markdown Files:**
+    *   Create a dedicated subfolder within the target repository to store the extracted conversations (e.g., `/home/mstouffer/repos/roo-conf/.roo-conf/conversations/`). Ensure this directory is created if it doesn't exist.
+    *   For each converted Markdown conversation, generate a unique and descriptive filename (e.g., using the task ID, a timestamp, or a portion of the initial prompt).
+    *   Write the Markdown content to a file with the generated filename within the `.roo-conf/conversations/` subfolder.
+    *   Implement error handling for writing files.
+
+8.  **Reporting:**
+    *   Report the number of conversations found and extracted.
     *   Report any errors encountered during the process.
 
-6.  **Modularity for Windows Extension:**
-    *   Structure the code for finding the paths (Step 2) in a way that can be easily extended for different operating systems. This might involve an OS-checking mechanism and separate functions for finding paths on POSIX and Windows.
-    *   The core synchronization logic (Steps 3 and 4) should be OS-agnostic, operating on the determined file paths.
+9.  **Documentation:**
+    *   Update [`README.md`](README.md) to describe the new `extract-conversations` command, its purpose, arguments, and usage.
 
-7.  **Integration:**
-    *   Add the new `sync-modes` subcommand to the main `roo-conf` entry point in [`pyproject.toml`](pyproject.toml) and the CLI parsing logic in `src/roo_conf/deploy.py` (or the new sync file).
-
-### Future Considerations (Windows Support)
-
-*   Investigate methods for finding VS Code installation paths on Windows. This might involve:
-    *   Checking environment variables (e.g., `VSCODE_CWD`).
-    *   Querying the Windows Registry.
-    *   Searching in known installation locations (e.g., `%APPDATA%\Code\User\`, `%APPDATA%\Code - Insiders\User\`).
-*   Implement a Windows-specific version of the `find_vscode_settings_paths` function.
+10. **Update Task List:**
+    *   Update [`task.md`](task.md) to include the tasks for implementing the `extract-conversations` feature.
 
 ### Workflow Diagram
 
 ```mermaid
 graph TD
-    A[Start sync-modes command] --> B{Determine OS};
-    B -- POSIX --> C[Find VS Code Settings Paths POSIX Convention];
-    B -- Windows (Future) --> D[Find VS Code Settings Paths Windows Logic];
-    C --> E{Verify File Existence};
-    D --> E;
-    E -- Files Found --> F[Determine Latest custom_modes.yaml];
-    E -- No Files Found --> G[Report Error/Warning];
-    F --> H[Read Latest File Content];
-    H --> I[Copy Content to Other Locations];
-    I --> J[Report Success];
-    G --> K[End Task];
-    J --> K;
+    A[Start extract-conversations command] --> B{Get Target Repository Path};
+    B --> C[Find VS Code Global Storage Directories];
+    C --> D[Identify Global State File Paths];
+    D --> E{Read & Parse Global State Files};
+    E -- Success --> F[Extract Task History];
+    E -- Error --> G[Report Error & End];
+    F --> H{Filter History by Repository};
+    H --> I{For Each Matching Conversation};
+    I --> J[Construct Paths to Conversation Files];
+    J --> K{Read Conversation Files};
+    K -- Success --> L[Convert to Markdown];
+    K -- Error --> M[Report Error & Continue/Skip];
+    L --> N[Save Markdown File];
+    N --> O[Report Success];
+    M --> I;
+    O --> I;
+    I -- All Matches Processed --> P[Report Summary & End];
+    G --> P;

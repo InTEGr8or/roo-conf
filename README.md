@@ -16,7 +16,7 @@ uv pip install roo-conf
 
 ## Usage
 
-The `roo-conf` command supports several subcommands: `deploy`, `edit`, `config`, `pull`, and `sync-modes`.
+The `roo-conf` command supports several subcommands: `deploy`, `edit`, `config`, `pull`, `sync-modes`, and `extract-conversations`.
 
 **Note:** While `uvx roo-conf` is the intended way to run installed console scripts, there seems to be a caching issue with `uvx` that prevents it from picking up the latest changes to the package metadata, resulting in an "invalid console script" error. Until this is resolved, it is recommended to use `uv run roo-conf` to execute the package's commands within the project's virtual environment.
 
@@ -87,6 +87,16 @@ uv run roo-conf sync-modes
 ```
 
 This command is useful for keeping your custom modes consistent across different VS Code installations.
+
+### Extracting Conversations
+
+The `extract-conversations` command extracts conversation history from VS Code's global storage for a specified repository.
+
+```bash
+uv run roo-conf extract-conversations [target_repo_path]
+```
+
+Replace `[target_repo_path]` with the absolute path to the repository for which you want to extract conversations. If not provided, it defaults to the current working directory. The extracted conversations will be saved as Markdown files in a `.roo-conf/conversations/` subfolder within the target repository.
 
 ## Development
 
