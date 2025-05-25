@@ -1,6 +1,6 @@
 [project]
 name = "roo-conf"
-version = "0.1.11"
+version = "0.1.12"
 description = "A configuration and prompt updater for Roo Code"
 readme = "README.md"
 authors = [
