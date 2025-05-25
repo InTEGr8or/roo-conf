@@ -7,6 +7,9 @@ source .venv/bin/activate
 uv clean
 rm -rf dist/
 
+# Increment the patch version
+uv run python increment_version.py
+
 # Build the package using hatch
 hatch build
 

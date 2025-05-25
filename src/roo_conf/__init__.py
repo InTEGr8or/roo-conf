@@ -4,6 +4,19 @@ import json
 from pathlib import Path
 import sys
 
+# Import functions from deploy.py
+from .deploy import (
+    deploy_prompts,
+    edit_prompt,
+    pull_templates,
+    sync_modes,
+    list_available_prompts, # Although not directly used in main, it's a utility function
+    get_config,
+    set_config,
+    print_config,
+)
+
+
 def hello() -> str:
     return "Hello from roo-conf!"
 
@@ -166,9 +179,6 @@ def convert_to_markdown(api_history, ui_messages):
     # Assuming a simple turn structure where API history and UI messages correspond
     # This might need refinement based on actual data structure
 
-    # Sort messages by timestamp if timestamps are available and reliable
-    # For now, interleave based on index as a basic approach
-
     # Create a combined list of messages with a source indicator
     combined_messages = []
     for msg in ui_messages:
@@ -176,7 +186,7 @@ def convert_to_markdown(api_history, ui_messages):
     for msg in api_history:
          combined_messages.append({"source": "assistant", "timestamp": msg.get("timestamp"), "content": msg.get("content")})
 
-    # Attempt to sort by timestamp if timestamps are present in all messages
+    # Attempt to sort by timestamp if timestamps are available and reliable
     try:
         if all(msg.get("timestamp") is not None for msg in combined_messages):
              # Assuming timestamp is in a sortable format (e.g., ISO 8601 string or number)
@@ -216,7 +226,7 @@ def convert_to_markdown(api_history, ui_messages):
 
 def main():
     parser = argparse.ArgumentParser(description="roo-conf CLI tool")
-    subparsers = parser.add_subparsers(dest="command")
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Add extract-conversations command
     extract_parser = subparsers.add_parser("extract-conversations", help="Extract conversation history from VS Code global storage")
@@ -228,9 +238,46 @@ def main():
     )
     extract_parser.set_defaults(func=extract_conversations_command)
 
-    # Add existing parsers from deploy.py if needed in the future
-    # from . import deploy
-    # deploy.add_subparser(subparsers)
+    # Add Deploy command from deploy.py
+    deploy_parser = subparsers.add_parser("deploy", help="Deploy prompt files to the .roo directory.")
+    deploy_parser.add_argument(
+        "components",
+        nargs="*", # 0 or more arguments
+        help="Optional list of components (e.g., cdk, typescript) or glob patterns to deploy."
+    )
+    deploy_parser.set_defaults(func=deploy_prompts)
+
+    # Add Edit command from deploy.py
+    edit_parser = subparsers.add_parser("edit", help="Edit a source template file.")
+    edit_parser.add_argument(
+        "file_name",
+        nargs="?", # Makes the argument optional
+        help="Name of the template file to edit."
+    )
+    edit_parser.set_defaults(func=edit_prompt)
+
+    # Add Config command from deploy.py
+    config_parser = subparsers.add_parser("config", help="Configure roo-conf settings.")
+    config_parser.add_argument(
+        "key",
+        nargs="?", # Make key optional
+        help="Configuration key (e.g., 'editor', 'template_source_repo')."
+    )
+    config_parser.add_argument(
+        "value",
+        nargs="?", # Make value optional
+        help="Configuration value."
+    )
+    # Use a lambda to call set_config or print_config based on arguments
+    config_parser.set_defaults(func=lambda args: set_config(args.key, args.value) if args.key and args.value is not None else print_config())
+
+    # Add Pull command from deploy.py
+    pull_parser = subparsers.add_parser("pull", help="Pull prompt templates from the configured remote repository.")
+    pull_parser.set_defaults(func=pull_templates)
+
+    # Add Sync Modes command from deploy.py
+    sync_modes_parser = subparsers.add_parser("sync-modes", help="Synchronize custom_modes.yaml between VS Code and VS Code Insiders.")
+    sync_modes_parser.set_defaults(func=sync_modes)
 
 
     args = parser.parse_args()
